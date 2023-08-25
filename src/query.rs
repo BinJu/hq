@@ -14,7 +14,9 @@ pub fn query(input: &InputParam) -> Result<String> {
 
 fn read_doc(input: &InputParam) -> Result<String> {
     match &input.data_source {
-        DataSource::URL(_url) => Err(Error::new(ErrorKind::Unsupported, "Unsupported yet")),
+        DataSource::URL(url) => {
+            reqwest::blocking::get(url).map_err(|e| Error::new(ErrorKind::ConnectionAborted, format!("failed to GET {} with the error {}", url, e)))?.text().map_err(|e| Error::new(ErrorKind::InvalidData, format!("failed to get text from {}", url)))
+        },
         DataSource::TEXT(text) => Ok(text.clone())
     }
 }
@@ -61,14 +63,6 @@ impl TryFrom<Args> for InputParam {
                kv.insert(String::from(key), String::from(val));
            }
        }
-       let data_source: DataSource = if kv.contains_key("url") {
-           DataSource::URL(kv["url"].clone())
-       } else if kv.contains_key("u") {
-           DataSource::URL(kv["u"].clone())
-       } else {
-           DataSource::TEXT(std::io::stdin().lines().map(|v| v.unwrap()).collect::<Vec<String>>().join("\n"))
-       };
-
        let node_selector = if kv.contains_key("css") {
            NodeSelector::Css(kv["css"].clone())
        } else if kv.contains_key("c") {
@@ -80,6 +74,15 @@ impl TryFrom<Args> for InputParam {
        } else {
            return Err(Error::new(ErrorKind::InvalidInput, "Not found neither --css nor --xpath"))
        };
+
+       let data_source: DataSource = if kv.contains_key("url") {
+           DataSource::URL(kv["url"].clone())
+       } else if kv.contains_key("u") {
+           DataSource::URL(kv["u"].clone())
+       } else {
+           DataSource::TEXT(std::io::stdin().lines().map(|v| v.unwrap()).collect::<Vec<String>>().join("\n"))
+       };
+
 
        Ok(InputParam{ data_source, node_selector })
     }
